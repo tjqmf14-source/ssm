@@ -1,6 +1,7 @@
 package com.ssm.app;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
@@ -81,12 +82,14 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     protected void onStart() {
         super.onStart();
         IntentFilter filter = new IntentFilter(PaymentNotificationListener.ACTION_TRANSACTION_CHANGED);
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(transactionReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
+            // Android 12L 이하에서는 RECEIVER_NOT_EXPORTED 플래그가 아직 정의되지 않았습니다.
             registerReceiver(transactionReceiver, filter);
         }
     }
