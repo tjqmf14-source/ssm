@@ -83,7 +83,7 @@ function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':
 const d=new Date();document.getElementById('monthLabel').textContent=`${d.getFullYear()}년 ${d.getMonth()+1}월`;
 const modal=document.getElementById('modal'); document.getElementById('manualOpen').onclick=()=>modal.classList.add('open'); document.getElementById('cancel').onclick=()=>modal.classList.remove('open');
 document.getElementById('save').onclick=()=>{const amount=Number(document.getElementById('amount').value);if(!amount||amount<1){showToast('금액을 확인해주세요.');return}const type=document.getElementById('type').value;const merchant=document.getElementById('merchant').value.trim()||'직접 입력';const now=new Date();const date=`${now.getMonth()+1}월 ${now.getDate()}일 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;tx.unshift({merchant,amount,type,date});modal.classList.remove('open');document.getElementById('amount').value='';document.getElementById('merchant').value='';render();showToast('거래가 추가되었습니다. (웹 미리보기 데이터)')};
-document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>showToast(b.dataset.demo==='notification'?'Android 앱에서 알림 접근 설정으로 이동합니다.':'Android 앱에서 캘린더 선택 창이 열릭니다.'));
+document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>showToast(b.dataset.demo==='notification'?'Android 앱에서 알림 접근 설정으로 이동합니다.':'Android 앱에서 캘린더 선택 창이 열립니다.'));
 let timer;function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>el.classList.remove('show'),2200)}
 render();
 </script>
