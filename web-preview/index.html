@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>씀 가계부 · Web Preview</title>
+<style>
+:root{--bg:#f7f9f9;--card:#fff;--text:#1f2423;--muted:#6f7876;--mint:#4caf91;--expense:#d54a4a;--income:#2d945d;--line:#e8edec}
+*{box-sizing:border-box}body{margin:0;background:#edf2f1;color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.shell{min-height:100vh;padding:24px 12px 48px;display:flex;justify-content:center}.phone{width:min(100%,430px);background:var(--bg);min-height:860px;border-radius:32px;box-shadow:0 18px 60px rgba(23,43,39,.13);overflow:hidden;border:1px solid #dfe7e5}
+.status{height:30px;padding:8px 22px 0;font-size:12px;font-weight:700;display:flex;justify-content:space-between}.app{padding:18px 20px 40px}.brand{font-size:28px;font-weight:800;letter-spacing:-.6px}.month{font-size:14px;color:var(--muted);margin-top:2px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}.total{margin-top:22px}.label{font-size:14px;color:var(--muted)}.totalValue{font-size:34px;font-weight:800;color:var(--expense);margin-top:6px;letter-spacing:-1.2px}.income{font-size:13px;font-weight:800;color:var(--income);margin-top:10px}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.smallLabel{font-size:12px;color:var(--muted)}.smallValue{font-size:18px;font-weight:800;margin-top:6px}.expense{color:var(--expense)}
+.setup{margin-top:18px}.setup h2,.recent h2{margin:0;font-size:16px}.calendar{margin:8px 0 12px;color:var(--muted);font-size:13px}.btn{width:100%;border:0;border-radius:12px;background:var(--mint);color:white;font-size:14px;font-weight:800;padding:12px 14px;margin-top:8px;cursor:pointer}.btn:first-of-type{margin-top:0}.btn:active{transform:translateY(1px)}
+.recent{margin-top:24px}.recent h2{font-size:18px;margin-bottom:12px}.tx{margin-top:10px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}.tx:first-of-type{margin-top:0}.merchant{font-size:15px;font-weight:800}.meta{font-size:12px;color:var(--muted);margin-top:4px}.amount{font-size:15px;font-weight:800;white-space:nowrap}.note{font-size:12px;line-height:1.45;color:var(--muted);margin-top:28px}.previewBadge{position:fixed;right:14px;bottom:14px;background:#1f2423;color:white;font-size:11px;padding:8px 10px;border-radius:999px;opacity:.88}
+.modal{position:fixed;inset:0;background:rgba(20,28,27,.38);display:none;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.dialog{width:min(100%,380px);background:white;border-radius:20px;padding:20px;box-shadow:0 24px 80px rgba(0,0,0,.2)}.dialog h3{margin:0 0 14px;font-size:18px}.field{width:100%;padding:12px;border:1px solid #dce5e3;border-radius:11px;margin-top:10px;font:inherit}.row{display:flex;gap:8px;margin-top:16px}.secondary{background:#eef3f2;color:var(--text)}.toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:#1f2423;color:#fff;padding:10px 14px;border-radius:10px;font-size:12px;opacity:0;pointer-events:none;transition:.2s;white-space:nowrap}.toast.show{opacity:1}.empty{font-size:14px;color:var(--muted);line-height:1.55;margin-top:12px}
+@media(max-width:500px){body{background:var(--bg)}.shell{padding:0}.phone{width:100%;min-height:100vh;border:0;border-radius:0;box-shadow:none}.previewBadge{display:none}}
+</style>
+</head>
+<body>
+<div class="shell"><main class="phone" aria-label="씀 가계부 웹 미리보기">
+  <div class="status"><span>9:41</span><span>5G&nbsp;&nbsp;▮▮▮</span></div>
+  <section class="app">
+    <div class="brand">씀</div>
+    <div class="month" id="monthLabel"></div>
+
+    <section class="card total">
+      <div class="label">이번 달 총지출</div>
+      <div class="totalValue" id="monthExpense">186,400원</div>
+      <div class="income" id="monthIncome">입금&nbsp; +2,300,000원</div>
+    </section>
+
+    <section class="metrics">
+      <div class="card"><div class="smallLabel">오늘 지출</div><div class="smallValue expense" id="todayExpense">18,900원</div></div>
+      <div class="card"><div class="smallLabel">이번 달 거래</div><div class="smallValue" id="monthCount">6건</div></div>
+    </section>
+
+    <section class="card setup">
+      <h2>자동 기록 설정</h2>
+      <div class="calendar">캘린더 · 개인</div>
+      <button class="btn" data-demo="notification">알림 접근 설정</button>
+      <button class="btn" data-demo="calendar">캘린더 선택</button>
+      <button class="btn" id="manualOpen">거래 직접 추가</button>
+    </section>
+
+    <section class="recent">
+      <h2>최근 내역</h2>
+      <div id="txList"></div>
+    </section>
+
+    <div class="note">거래 데이터는 이 기기에만 저장됩니다. 캘린더 기록은 선택한 Android 캘린더에 추가됩니다.</div>
+  </section>
+</main></div>
+<div class="previewBadge">Android UI Web Preview</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+  <div class="dialog">
+    <h3 id="dialogTitle">거래 직접 추가</h3>
+    <select class="field" id="type"><option value="expense">지출</option><option value="income">입금</option></select>
+    <input class="field" id="amount" type="number" min="1" placeholder="금액" />
+    <input class="field" id="merchant" placeholder="사용처 / 보낸 사람" />
+    <div class="row"><button class="btn secondary" id="cancel">취소</button><button class="btn" id="save">저장</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const tx=[
+ {merchant:'부산대 카페',amount:5900,type:'expense',date:'9월 22일 18:42'},
+ {merchant:'편의점',amount:13000,type:'expense',date:'9월 22일 12:08'},
+ {merchant:'급여',amount:2300000,type:'income',date:'9월 21일 09:10'},
+ {merchant:'배달의민족',amount:27800,type:'expense',date:'9월 20일 20:16'},
+ {merchant:'교통',amount:12000,type:'expense',date:'9월 19일 08:30'},
+ {merchant:'온라인 쇼핑',amount:127700,type:'expense',date:'9월 18일 22:41'}
+];
+const won=n=>Number(n).toLocaleString('ko-KR')+'원';
+function render(){
+ const list=document.getElementById('txList'); list.innerHTML='';
+ tx.forEach(t=>{const row=document.createElement('div');row.className='card tx';row.innerHTML=`<div><div class="merchant">${escapeHtml(t.merchant)}</div><div class="meta">${t.date}</div></div><div class="amount ${t.type==='expense'?'expense':'income'}">${t.type==='expense'?'-':'+'}${won(t.amount)}</div>`;list.appendChild(row)});
+ const exp=tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0); const inc=tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+ document.getElementById('monthExpense').textContent=won(exp); document.getElementById('monthIncome').textContent='입금  +'+won(inc); document.getElementById('monthCount').textContent=tx.length+'건';
+ document.getElementById('todayExpense').textContent=won(tx.filter(t=>t.type==='expense'&&t.date.startsWith('9월 22일')).reduce((s,t)=>s+t.amount,0));
+}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+const d=new Date();document.getElementById('monthLabel').textContent=`${d.getFullYear()}년 ${d.getMonth()+1}월`;
+const modal=document.getElementById('modal'); document.getElementById('manualOpen').onclick=()=>modal.classList.add('open'); document.getElementById('cancel').onclick=()=>modal.classList.remove('open');
+document.getElementById('save').onclick=()=>{const amount=Number(document.getElementById('amount').value);if(!amount||amount<1){showToast('금액을 확인해주세요.');return}const type=document.getElementById('type').value;const merchant=document.getElementById('merchant').value.trim()||'직접 입력';const now=new Date();const date=`${now.getMonth()+1}월 ${now.getDate()}일 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;tx.unshift({merchant,amount,type,date});modal.classList.remove('open');document.getElementById('amount').value='';document.getElementById('merchant').value='';render();showToast('거래가 추가되었습니다. (웹 미리보기 데이터)')};
+document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>showToast(b.dataset.demo==='notification'?'Android 앱에서 알림 접근 설정으로 이동합니다.':'Android 앱에서 캘린더 선택 창이 열릭니다.'));
+let timer;function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>el.classList.remove('show'),2200)}
+render();
+</script>
+</body>
+</html>
