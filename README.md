@@ -20,12 +20,12 @@
 - Android Gradle Plugin 9.4.0
 - Gradle 9.6.0
 - JDK 17
-- compileSdk / targetSdk 37
+- compileSdk / targetSdk 36
 - minSdk 28
 
 ## 로컬 실행
 1. Android Studio Quail 4 이상에서 저장소를 엽니다.
-2. Android SDK 37을 설치합니다.
+2. Android SDK 36을 설치합니다.
 3. Gradle Sync 후 app을 실행합니다.
 4. 앱의 '알림 접근 설정'에서 씀을 허용합니다.
 5. '캘린더 선택'에서 사용할 Google 캘린더를 고릅니다.
