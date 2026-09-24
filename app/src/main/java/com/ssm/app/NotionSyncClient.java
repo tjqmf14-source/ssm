@@ -17,7 +17,7 @@ public final class NotionSyncClient {
     public static final String DATA_SOURCE_ID = "6dbe7411-93e9-4b01-a2e9-761fe4c0e98f";
     private static final String API_BASE = "https://api.notion.com/v1";
     private static final String NOTION_VERSION = "2026-03-11";
-    private static final Pattern ID_PATTERN = Pattern.compile("\\"id\\"\\s*:\\s*\\"([^\\"]+)\\"");
+    private static final Pattern ID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]+)\"");
 
     public static final class Result {
         public final boolean success;
