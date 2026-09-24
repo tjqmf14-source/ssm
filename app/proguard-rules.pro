@@ -1,1 +1,1 @@
-# SSM v1.0 - no custom ProGuard rules required.
+# No reflection-based model serialization is used.

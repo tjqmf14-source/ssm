@@ -1,41 +1,18 @@
-# 씀 가계부
+# 씀 가계부 2.0
 
-무료·로컬 중심 Android 가계부입니다.
+로컬 저장을 우선하는 Android 자동 가계부입니다.
 
 ## 핵심 기능
-- 결제/입금 알림 감지
-- 카드사·은행 알림에서 금액/구분 자동 추출
-- 로컬 SQLite 저장
-- 이번 달 총지출, 오늘 지출, 입금, 거래 건수 표시
-- 최근 거래 내역 표시
-- Android Calendar Provider를 통한 캘린더 기록
-- 알림 접근/캘린더 권한을 앱에서 바로 설정
-- 수동 거래 추가
-- 중복 알림 방지
+- 결제/입금 알림 자동 감지 및 거래 추출
+- SHA-256 transaction_id 중복 방지
+- SQLite 로컬 저장
+- 자동 카테고리 분류와 사용자 보정 규칙
+- Google Calendar / 삼성 캘린더 동시 기록
+- 기존 Notion 입출금 캘린더 데이터소스 동기화
+- 외부 연동별 상태 저장과 지수 백오프 재시도
+- 수동 거래 추가·수정·삭제
+- Notion 토큰 Android Keystore 암호화 저장
 
-## 데이터 흐름
-결제 알림 → 씀 알림 리스너 → 거래 파싱 → 로컬 DB → 선택한 캘린더 → 대시보드 갱신
-
-## 빌드 환경
-- Android Gradle Plugin 9.4.0
-- Gradle 9.6.0
-- JDK 17
-- compileSdk / targetSdk 36
-- minSdk 28
-
-## 로컬 실행
-1. Android Studio Quail 4 이상에서 저장소를 엽니다.
-2. Android SDK 36을 설치합니다.
-3. Gradle Sync 후 app을 실행합니다.
-4. 앱의 '알림 접근 설정'에서 씀을 허용합니다.
-5. '캘린더 선택'에서 사용할 Google 캘린더를 고릅니다.
-
-## 자동 QA
-GitHub Actions에서 다음을 수행합니다.
-- testDebugUnitTest
-- lintDebug
-- assembleDebug
-- APK artifact 업로드
-
-## 개인정보
-거래 데이터는 앱의 로컬 SQLite에 저장합니다. 외부 서버나 유료 API로 전송하지 않습니다.
+## 검증
+GitHub Actions에서 unit test, Android lint, debug/release APK build를 실행하고 APK artifact를 업로드합니다.
+실제 기기의 알림 접근, Google/삼성 캘린더 계정, Notion Integration 권한은 별도 실기 QA가 필요합니다.
