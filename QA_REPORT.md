@@ -1,57 +1,62 @@
-# 씀 가계부 2.0 QA 게이트
+# 씀 가계부 2.0 QA 보고서
 
-기준선: `d080f484834c53d20d840ee97509b583c1264b36`
+## 검증 기준
+- 제품 기준 main: `71e75a1277c28dbf62eb387744e2420ea6733f55`
+- QA 코드 HEAD: `9062d3cdd5b37b5e9b41bc1939c0f8911c703c7a`
+- GitHub Actions: Android CI Run #42 / `36004652803`
+- 결과: **PASS**
 
-## 커밋 전 검증 — PASS
-- 순수 Java 핵심 로직 QA: **PASS 15/15**
-- 전체 프로덕션 Java 소스 Android 최소 스텁 컴파일: **PASS 14/14 소스**
-- Manifest / resources XML 파싱: **PASS 4개 파일**
-- GitHub Actions YAML 파싱: **PASS**
-- 기능·보안·CI 소스 계약 검사: **PASS 21/21**
-- 비밀정보 하드코딩 검사: **PASS 28개 대상 파일**
-- SQLite fresh v3 스키마: **PASS**
-- SQLite v1 → v3 마이그레이션 및 legacy 거래 보존: **PASS**
-- SQLite v2 → v3 마이그레이션 및 기존 sync 상태 보존: **PASS**
-- 외부 Calendar / Notion 삭제 큐 보존: **PASS**
-- Notion 기존 데이터소스 ID / 이름 / 속성 계약: **PASS**
-- Notion API version `2026-03-11`: **PASS**
-- 모든 커밋 대상 핵심 파일 non-empty 검사: **PASS**
+## 실제 실행 결과
+- JDK 17 / Android SDK 36 설치: PASS
+- Clean: PASS
+- Unit tests: **12/12 PASS, skipped 0, failures 0, errors 0**
+- Android lint: **0 warnings / 0 errors**
+- debug APK: PASS
+- release APK: PASS
+- release AAB: PASS
+- non-empty 산출물 검증: PASS
+- SHA-256 생성/대조: PASS
+- GitHub Actions artifact 업로드: PASS
 
-## 이번 최종 보강 범위
-- 결제/입금 알림 파서 오탐·가맹점 추출 개선
-- 알림 키 우선 `transaction_id` 중복 방지 강화
-- Google / Samsung Calendar `transaction_id` 이벤트 중복 방지
-- Samsung 전용 계정이 없을 때 Google 동기화 캘린더 공유 처리
-- Notion API `2026-03-11` 반영
-- 외부 연동 실패 대상별 재시도 및 다음 재시도 시각 보존
-- 권한/토큰/오프라인 상태를 실패 횟수로 누적하지 않도록 보강
-- 거래 수정 시 외부 레코드 재동기화
-- 거래 삭제 시 Calendar / Notion 외부 삭제 큐 처리
-- JobScheduler persisted 재시도 및 재부팅 복구 조건 반영
-- Notion 토큰 Android Keystore AES-GCM 저장
-- 알림 접근 권한 사용 목적 고지
-- 상용형 대시보드 카드 UI와 씀 전용 앱 아이콘 적용
-- CI zero-test / empty artifact / stale output 방지 게이트 강화
+## 산출물
+- Artifact: `ssm-2.0-final`
+- Artifact ID: `10809687847`
+- Artifact archive digest: `sha256:87ea0f4d8dd161363be16a4ec4fc42310449c04a3b3495add6624964d9bd4060`
+- debug APK: 2,610,282 bytes  
+  `ad68a0f3a9e0e9fc679652848a561735c40d5af3a56c5370c8859f6936d9a077`
+- release APK (unsigned): 67,958 bytes  
+  `3b30790f034f84c4c39d8738efd41769917fc0ad3057470cafb277369caa9e54`
+- release AAB: 57,219 bytes  
+  `93fbfbea9aa96e09343dff79a9258ecca263e7cc8930ab416af8611860863d9f`
 
-## 원격 Android QA 완료 조건
-최종 PASS는 아래 GitHub Actions 단계가 **동일 commit SHA**에서 모두 실제 실행되어야 한다.
-1. Unit tests
-2. JUnit XML 존재 및 테스트 결과 failure/error 0건
-3. Android lint
-4. lint report 존재
-5. debug APK build
-6. release APK build
-7. release AAB build
-8. APK/AAB non-empty 검증
-9. SHA-256 체크섬 생성
-10. artifact 실제 업로드
+## 이번 QA에서 추가 보강한 항목
+- release resource shrinking 적용
+- Android 12+ data extraction rules와 Android 11 이하 backup rules 추가
+- 가계부 DB·환경설정 등 앱 데이터의 백업/기기전송 제외 정책 명시
+- minSdk 28 기준 불필요한 SDK_INT 분기 제거
+- lint 게이트를 0 warning / 0 error로 강화
+- API 37은 현재 CI sdkmanager 기본 채널에서 설치되지 않아 제품 타깃으로 채택하지 않고 API 36 안정 채널 유지
 
-`queued / skipped / cancelled / zero-test / empty artifact / stale SHA`는 PASS로 판정하지 않는다.
+## 제품 기능 범위
+- 결제/입금 알림 자동 감지 및 파싱
+- 금액·가맹점·결제수단·지출/입금·시간 추출
+- SQLite 로컬 저장
+- notification key 기반 SHA-256 `transaction_id` 중복 방지
+- 자동 카테고리 분류 및 사용자 보정 규칙
+- 수동 거래 추가/수정/삭제
+- Google Calendar / Samsung Calendar 동기화
+- 기존 Notion 입출금 데이터소스 동기화
+- 오프라인 우선 저장 및 외부 연동 재시도
+- 거래 수정 재동기화 및 삭제 큐 처리
+- Notion 토큰 Android Keystore 암호화 저장
 
-## 실기기 검증 경계
-CI 통과는 코드·빌드·정적검증 완료를 의미한다. 다음 항목은 Galaxy 실기기와 실제 계정/알림이 있어야 최종 확인할 수 있다.
-- 실제 카드사·은행별 알림 포맷
-- Notification access 승인 후 백그라운드 자동 저장
-- Google / Samsung Calendar 계정별 표시와 동기화
-- 사용자의 Notion Integration 토큰/권한으로 생성·수정·삭제
-- Google Play Protect / Play 내부 테스트 설치 경로
+## PASS로 처리하지 않은 실기기 항목
+다음은 Galaxy 실기기와 실제 계정/알림이 필요하므로 **NOT RUN** 상태다.
+- 카드사·은행별 실제 알림 포맷 전수 검증
+- 알림 접근 승인 후 장시간 백그라운드 자동 저장
+- 실제 Google/Samsung Calendar 계정별 생성·수정·삭제
+- 실제 Notion Integration 계정 생성·수정·삭제
+- Android 17 실기기 동작 검증
+- Google Play 내부 테스트/Play Protect 배포 검증
+
+queued / skipped / cancelled / zero-test / empty artifact / stale SHA는 PASS로 판정하지 않는다.
