@@ -32,15 +32,25 @@ public final class TransactionRepository {
         return tx;
     }
 
-    public boolean correct(String transactionId, String merchant, String category, String paymentMethod) {
+    public boolean correct(String transactionId, long amount, String type, String merchant,
+                           String category, String paymentMethod, long occurredAt) {
+        if (amount <= 0 || merchant == null || merchant.trim().isEmpty()) return false;
+        if (!Transaction.TYPE_EXPENSE.equals(type) && !Transaction.TYPE_INCOME.equals(type)) return false;
         try (TransactionDb db = new TransactionDb(context)) {
             Transaction old = db.find(transactionId);
             if (old == null) return false;
+            String fixedMerchant = merchant.trim();
             Transaction fixed = new Transaction(old.id, old.transactionId, old.sourceKey, old.sourcePackage,
-                    merchant, old.amount, old.type, category, paymentMethod,
-                    old.occurredAt, old.rawText, old.manual);
+                    fixedMerchant, amount, type, category, paymentMethod,
+                    occurredAt, old.rawText, old.manual);
             if (!db.update(fixed)) return false;
-            db.saveMerchantRule(merchant, category);
+
+            // Learn both aliases. If the parser supplied a noisy merchant name and the user
+            // corrected it, the next identical notification still receives the chosen category.
+            db.saveMerchantRule(old.merchant, category);
+            db.saveMerchantRule(fixedMerchant, category);
+
+            // Keep transaction_id/remote_id stable so Calendar and Notion update in place.
             db.resetSyncTargets(transactionId);
         }
         SyncCoordinator.schedule(context);

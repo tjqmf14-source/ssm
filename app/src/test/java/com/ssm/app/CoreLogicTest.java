@@ -21,6 +21,8 @@ public class CoreLogicTest {
     @Test public void classifiesKnownCategories() {
         assertEquals("교통",CategoryClassifier.classify("부산 지하철","승인"));
         assertEquals("의료",CategoryClassifier.classify("행복약국","결제"));
+        assertEquals("생활",CategoryClassifier.classify("CU 부산대점","승인"));
+        assertEquals("기타",CategoryClassifier.classify("SECURE PAY","승인"));
         assertEquals("기타",CategoryClassifier.classify("알수없음","결제"));
     }
     @Test public void retryBackoffIsBounded() {

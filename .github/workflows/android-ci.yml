@@ -49,11 +49,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d app/build/test-results/testDebugUnitTest
-          count="$(find app/build/test-results/testDebugUnitTest -type f -name '*.xml' | wc -l)"
-          test "$count" -gt 0
-          ! grep -R 'failures="[1-9]' app/build/test-results/testDebugUnitTest
-          ! grep -R 'errors="[1-9]' app/build/test-results/testDebugUnitTest
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root_dir = Path("app/build/test-results/testDebugUnitTest")
+          xmls = sorted(root_dir.glob("*.xml")) if root_dir.is_dir() else []
+          tests = failures = errors = skipped = 0
+          for path in xmls:
+              root = ET.parse(path).getroot()
+              tests += len(root.findall(".//testcase"))
+              failures += len(root.findall(".//failure"))
+              errors += len(root.findall(".//error"))
+              skipped += len(root.findall(".//skipped"))
+          print(f"unit xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped}")
+          if not xmls or tests <= 0 or failures or errors or skipped:
+              sys.exit(1)
+          PY
 
       - name: Android lint
         run: gradle --no-daemon lintDebug
@@ -102,4 +115,122 @@ jobs:
             app/build/outputs/SHA256SUMS.txt
             app/build/reports/lint-results-debug.html
             app/build/test-results/testDebugUnitTest/
+          if-no-files-found: error
+
+
+  emulator-regression:
+    needs: qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0" "emulator" "system-images;android-36;google_apis;x86_64"
+
+      - name: Install Gradle 9.6.0
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-9.6.0-bin.zip
+          unzip -q /tmp/gradle.zip -d "$HOME/gradle"
+          echo "$HOME/gradle/gradle-9.6.0/bin" >> "$GITHUB_PATH"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android emulator regression tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell wm size 1080x2400
+            adb shell wm density 540
+            adb shell settings put system font_scale 1.0
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/320dp/results app/build/qa-emulator/320dp/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/320dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/320dp/report/; fi; exit "$status"
+            adb shell wm density 480
+            adb shell settings put system font_scale 1.30
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/360dp-large-font/results app/build/qa-emulator/360dp-large-font/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/360dp-large-font/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/360dp-large-font/report/; fi; exit "$status"
+            adb shell wm density 420
+            adb shell settings put system font_scale 1.0
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/412dp/results app/build/qa-emulator/412dp/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/412dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/412dp/report/; fi; exit "$status"
+
+      - name: Print instrumentation results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="app/build/qa-emulator"
+          if [ -d "$evidence_dir" ]; then
+            find "$evidence_dir" -type f -name '*.xml' -print -exec cat {} \;
+          else
+            echo "Emulator evidence directory missing: $evidence_dir"
+          fi
+
+      - name: Verify instrumentation results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          base = Path("app/build/qa-emulator")
+          profiles = ("320dp", "360dp-large-font", "412dp")
+          failed = False
+          for profile in profiles:
+              result_dir = base / profile / "results"
+              xmls = sorted(result_dir.glob("*.xml")) if result_dir.is_dir() else []
+              tests = failures = errors = skipped = 0
+              for path in xmls:
+                  root = ET.parse(path).getroot()
+                  tests += len(root.findall(".//testcase"))
+                  failures += len(root.findall(".//failure"))
+                  errors += len(root.findall(".//error"))
+                  skipped += len(root.findall(".//skipped"))
+              print(f"{profile}: xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped}")
+              if not xmls or tests <= 0 or failures or errors or skipped:
+                  failed = True
+          if failed:
+              sys.exit(1)
+          PY
+
+      - name: Upload emulator QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssm-2.0-emulator-regression
+          path: |
+            app/build/qa-emulator/
+            app/build/outputs/androidTest-results/connected/debug/
+            app/build/reports/androidTests/connected/debug/
           if-no-files-found: error
