@@ -281,7 +281,7 @@ public final class MainActivity extends Activity {
         Spinner category = spinner(CATEGORIES, indexOf(CATEGORIES, tx.category));
         Spinner method = spinner(METHODS, indexOf(METHODS, tx.paymentMethod));
         final long[] occurredAt = {tx.occurredAt};
-        Button time = secondaryButton("거래 시간 · " + formatTransactionTime(tx.occurredAt),
+        Button time = secondaryButton(formatEditTimeLabel(tx.occurredAt),
                 v -> pickTransactionTime(occurredAt, timeButton(v)));
 
         form.addView(type);
@@ -522,9 +522,13 @@ public final class MainActivity extends Activity {
                 picked.set(Calendar.SECOND, 0);
                 picked.set(Calendar.MILLISECOND, 0);
                 holder[0] = picked.getTimeInMillis();
-                target.setText("거래 시간 · " + formatTransactionTime(holder[0]));
+                target.setText(formatEditTimeLabel(holder[0]));
             }, picked.get(Calendar.HOUR_OF_DAY), picked.get(Calendar.MINUTE), true).show();
         }, current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private String formatEditTimeLabel(long millis) {
+        return "거래 시간 · " + formatTransactionTime(millis);
     }
 
     private String formatTransactionTime(long millis) {
