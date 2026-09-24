@@ -2,12 +2,12 @@ plugins { id 'com.android.application' }
 
 android {
     namespace = 'com.ssm.app'
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = 'com.ssm.app'
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 20
         versionName = '2.0.0'
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
@@ -16,6 +16,7 @@ android {
     buildTypes {
         release {
             minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
