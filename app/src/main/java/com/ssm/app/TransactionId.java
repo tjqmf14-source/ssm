@@ -11,10 +11,10 @@ public final class TransactionId {
 
     public static String create(String sourcePackage, String sourceKey, long amount, String type,
                                 long occurredAt, String merchant) {
-        String minuteBucket = String.valueOf(occurredAt / 60_000L);
-        String source = "manual".equals(norm(sourcePackage)) ? norm(sourceKey) : "auto";
-        String normalized = norm(sourcePackage) + "|" + source + "|" + amount + "|" +
-                norm(type) + "|" + minuteBucket + "|" + norm(merchant);
+        String normalizedKey = norm(sourceKey);
+        String sourceIdentity = normalizedKey.isBlank() ? "minute:" + (occurredAt / 60_000L) : normalizedKey;
+        String normalized = norm(sourcePackage) + "|" + sourceIdentity + "|" + amount + "|" +
+                norm(type) + "|" + norm(merchant);
         return "tx_" + sha256(normalized).substring(0, 24);
     }
 
