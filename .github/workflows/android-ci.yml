@@ -165,32 +165,22 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            set -eu
             adb shell wm size 1080x2400
-
-            run_profile() {
-              profile="$1"
-              density="$2"
-              font_scale="$3"
-              adb shell wm density "$density"
-              adb shell settings put system font_scale "$font_scale"
-
-              status=0
-              gradle --no-daemon connectedDebugAndroidTest || status=$?
-
-              result_src="app/build/outputs/androidTest-results/connected/debug"
-              report_src="app/build/reports/androidTests/connected/debug"
-              evidence="app/build/qa-emulator/$profile"
-              mkdir -p "$evidence/results" "$evidence/report"
-              if [ -d "$result_src" ]; then cp -a "$result_src/." "$evidence/results/"; fi
-              if [ -d "$report_src" ]; then cp -a "$report_src/." "$evidence/report/"; fi
-
-              if [ "$status" -ne 0 ]; then exit "$status"; fi
-            }
-
-            run_profile "320dp" 540 1.0
-            run_profile "360dp-large-font" 480 1.30
-            run_profile "412dp" 420 1.0
+            adb shell wm density 540
+            adb shell settings put system font_scale 1.0
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/320dp/results app/build/qa-emulator/320dp/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/320dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/320dp/report/; fi; exit "$status"
+            adb shell wm density 480
+            adb shell settings put system font_scale 1.30
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/360dp-large-font/results app/build/qa-emulator/360dp-large-font/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/360dp-large-font/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/360dp-large-font/report/; fi; exit "$status"
+            adb shell wm density 420
+            adb shell settings put system font_scale 1.0
+            rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
+            mkdir -p app/build/qa-emulator/412dp/results app/build/qa-emulator/412dp/report
+            status=0; gradle --no-daemon connectedDebugAndroidTest || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/412dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/412dp/report/; fi; exit "$status"
 
       - name: Print instrumentation results
         if: always()
