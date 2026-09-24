@@ -345,11 +345,12 @@ public final class MainActivity extends Activity {
 
                     TransactionDb db = new TransactionDb(this);
                     long rowId = db.insertOrIgnore(transaction);
-                    if (rowId > 0L) {
-                        Long eventId = CalendarSync.addTransactionEvent(this, transaction);
-                        if (eventId != null) db.markCalendarEvent(rowId, eventId);
-                    }
+                    String transactionId = rowId > 0L ? db.getTransactionId(rowId) : null;
                     db.close();
+
+                    if (rowId > 0L) {
+                        SyncScheduler.enqueue(this, transactionId);
+                    }
                     render();
                 })
                 .setNegativeButton("취소", null)

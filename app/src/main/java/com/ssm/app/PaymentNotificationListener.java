@@ -11,14 +11,10 @@ public final class PaymentNotificationListener extends NotificationListenerServi
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        if (sbn == null || getPackageName().equals(sbn.getPackageName())) {
-            return;
-        }
+        if (sbn == null || getPackageName().equals(sbn.getPackageName())) return;
 
         Notification notification = sbn.getNotification();
-        if (notification == null) {
-            return;
-        }
+        if (notification == null) return;
 
         CharSequence titleCs = notification.extras.getCharSequence(Notification.EXTRA_TITLE);
         CharSequence textCs = notification.extras.getCharSequence(Notification.EXTRA_TEXT);
@@ -33,22 +29,16 @@ public final class PaymentNotificationListener extends NotificationListenerServi
                 sbn.getPostTime()
         );
 
-        if (transaction == null) {
-            return;
-        }
+        if (transaction == null) return;
 
         TransactionDb db = new TransactionDb(getApplicationContext());
         long rowId = db.insertOrIgnore(transaction);
-        if (rowId <= 0L) {
-            db.close();
-            return;
-        }
-
-        Long eventId = CalendarSync.addTransactionEvent(getApplicationContext(), transaction);
-        if (eventId != null) {
-            db.markCalendarEvent(rowId, eventId);
-        }
+        String transactionId = rowId > 0L ? db.getTransactionId(rowId) : null;
         db.close();
+
+        if (rowId <= 0L) return;
+
+        SyncScheduler.enqueue(getApplicationContext(), transactionId);
 
         Intent changed = new Intent(ACTION_TRANSACTION_CHANGED);
         changed.setPackage(getPackageName());

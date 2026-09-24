@@ -16,8 +16,12 @@ public final class NotificationParser {
             "입금", "급여", "송금 받", "송금받", "이체 받", "이체받"
     };
 
-    private static final String[] IGNORE_WORDS = {
-            "승인취소", "결제취소", "취소완료", "승인 취소", "결제 취소"
+    private static final String[] CANCEL_WORDS = {
+            "승인취소", "결제취소", "취소완료", "승인 취소", "결제 취소", "환불"
+    };
+
+    private static final String[] PROMO_WORDS = {
+            "쿠폰", "혜택", "이벤트", "광고", "수신거부", "가입하면", "할인쿠폰"
     };
 
     private NotificationParser() {}
@@ -31,25 +35,22 @@ public final class NotificationParser {
             long postTime
     ) {
         String combined = join(title, text, bigText);
-        if (combined.isBlank()) {
-            return null;
-        }
+        if (combined.trim().isEmpty()) return null;
 
         String normalized = combined.replace("\n", " ").replaceAll("\\s+", " ").trim();
-        if (containsAny(normalized, IGNORE_WORDS)) {
-            return null;
-        }
+        boolean financialSource = isFinancialSource(packageName);
+
+        if (!financialSource && isCommerceOrPromo(packageName, normalized)) return null;
 
         Matcher matcher = AMOUNT_PATTERN.matcher(normalized);
-        if (!matcher.find()) {
-            return null;
-        }
+        if (!matcher.find()) return null;
 
+        boolean cancel = containsAny(normalized, CANCEL_WORDS);
         boolean income = containsAny(normalized, INCOME_WORDS);
-        boolean expense = containsAny(normalized, EXPENSE_WORDS);
-        if (!income && !expense) {
-            return null;
-        }
+        boolean expense = containsAny(normalized, EXPENSE_WORDS) || cancel;
+
+        if (!income && !expense) return null;
+        if (!financialSource && containsAny(normalized, PROMO_WORDS)) return null;
 
         long amount;
         try {
@@ -57,55 +58,76 @@ public final class NotificationParser {
         } catch (NumberFormatException error) {
             return null;
         }
+        if (amount <= 0L) return null;
 
-        if (amount <= 0L) {
-            return null;
-        }
-
-        String type = income ? Transaction.TYPE_INCOME : Transaction.TYPE_EXPENSE;
+        String type = income && !expense ? Transaction.TYPE_INCOME : Transaction.TYPE_EXPENSE;
         String merchant = extractMerchant(title, text, normalized, matcher.group());
-        String key = (sourceKey == null || sourceKey.isBlank())
-                ? packageName + ":" + postTime + ":" + amount + ":" + merchant
-                : sourceKey + ":" + amount + ":" + type;
+        String paymentMethod = PaymentMethodClassifier.classify(packageName, normalized);
+        String category = CategoryClassifier.classify(merchant, normalized);
+        String status = cancel ? Transaction.STATUS_CANCELLED : Transaction.STATUS_NORMAL;
+        double confidence = financialSource ? 0.96 : 0.80;
+
+        String fallbackKey = safe(packageName) + ":" + postTime + ":" + amount + ":" + merchant;
+        String key = safe(sourceKey).trim().isEmpty() ? fallbackKey : sourceKey;
+        String transactionId = TransactionIdentity.create(key, packageName, amount, type, postTime, merchant);
 
         return new Transaction(
                 0L,
+                transactionId,
                 key,
                 safe(packageName),
                 merchant,
+                MerchantNormalizer.normalize(merchant),
                 amount,
                 type,
                 postTime,
                 normalized,
+                paymentMethod,
+                category,
+                status,
+                confidence,
+                null,
                 null
         );
     }
 
+    private static boolean isFinancialSource(String packageName) {
+        String pkg = safe(packageName).toLowerCase(Locale.ROOT);
+        return pkg.contains("card")
+                || pkg.contains("bank")
+                || pkg.contains("samsung.android.spay")
+                || pkg.contains("kakaopay")
+                || pkg.contains("naverfin")
+                || pkg.contains("payco")
+                || pkg.contains("woori")
+                || pkg.contains("shinhan")
+                || pkg.contains("kb")
+                || pkg.contains("hana")
+                || pkg.contains("nh");
+    }
+
+    private static boolean isCommerceOrPromo(String packageName, String text) {
+        String pkg = safe(packageName).toLowerCase(Locale.ROOT);
+        if (pkg.contains("coupang") || pkg.contains("shopping") || pkg.contains("market")) return true;
+        return containsAny(text, PROMO_WORDS) && !containsAny(text, INCOME_WORDS);
+    }
+
     private static String extractMerchant(String title, String text, String combined, String amountToken) {
-        String candidate = !safe(title).isBlank() ? safe(title) : safe(text);
-        if (candidate.isBlank()) {
-            candidate = combined;
-        }
+        String candidate = !safe(title).trim().isEmpty() ? safe(title) : safe(text);
+        if (candidate.trim().isEmpty()) candidate = combined;
 
         candidate = candidate
-                .replace(amountToken, "")
-                .replaceAll("[\\[\\](){}]", " ")
-                .replaceAll("(?i)승인|결제|이용|사용|출금|구매|입금|급여|체크카드|신용카드", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+                .replace(amountToken, " ")
+                .replaceAll("(?i)\\b(현대|우리|신한|국민|kb|하나|nh|롯데|삼성)\\s*카드\\b", " ")
+                .replaceAll("(?i)잔액\\s*[0-9,]+원", " ");
 
-        if (candidate.length() > 40) {
-            candidate = candidate.substring(0, 40).trim();
-        }
-        return candidate.isBlank() ? "거래" : candidate;
+        return MerchantNormalizer.cleanDisplayName(candidate);
     }
 
     private static boolean containsAny(String text, String[] words) {
         String lower = text.toLowerCase(Locale.KOREA);
         for (String word : words) {
-            if (lower.contains(word.toLowerCase(Locale.KOREA))) {
-                return true;
-            }
+            if (lower.contains(word.toLowerCase(Locale.KOREA))) return true;
         }
         return false;
     }
@@ -113,7 +135,7 @@ public final class NotificationParser {
     private static String join(String... values) {
         StringBuilder builder = new StringBuilder();
         for (String value : values) {
-            if (value != null && !value.isBlank()) {
+            if (value != null && !value.trim().isEmpty()) {
                 if (builder.length() > 0) builder.append(' ');
                 builder.append(value);
             }
