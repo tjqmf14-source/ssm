@@ -28,6 +28,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.NumberFormat;
+import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -270,24 +271,48 @@ public final class MainActivity extends Activity {
 
     private void showEditDialog(Transaction tx) {
         LinearLayout form = form();
+        EditText amount = input("금액", InputType.TYPE_CLASS_NUMBER);
+        amount.setText(String.valueOf(tx.amount));
+        Spinner type = spinner(new String[]{"지출", "입금"}, tx.isExpense() ? 0 : 1);
+        type.setContentDescription("거래 유형");
         EditText merchant = input("사용처", InputType.TYPE_CLASS_TEXT);
         merchant.setText(tx.merchant);
         Spinner category = spinner(CATEGORIES, indexOf(CATEGORIES, tx.category));
         Spinner method = spinner(METHODS, indexOf(METHODS, tx.paymentMethod));
-        form.addView(merchant); form.addView(category); form.addView(method);
-        new AlertDialog.Builder(this)
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA);
+        dateFormat.setLenient(false);
+        EditText occurredAt = input("거래 시각 (YYYY-MM-DD HH:mm)", InputType.TYPE_CLASS_TEXT);
+        occurredAt.setText(dateFormat.format(new Date(tx.occurredAt)));
+        form.addView(amount); form.addView(type); form.addView(merchant);
+        form.addView(category); form.addView(method); form.addView(occurredAt);
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("거래 보정")
                 .setMessage("같은 가맹점의 다음 거래부터 선택한 카테고리를 자동 적용합니다.")
                 .setView(form)
-                .setPositiveButton("저장", (d,w) -> {
-                    String name = merchant.getText().toString().trim();
-                    if (name.isEmpty()) return;
-                    new TransactionRepository(this).correct(tx.transactionId, name,
-                            (String) category.getSelectedItem(), (String) method.getSelectedItem());
-                    render();
-                })
+                .setPositiveButton("저장", null)
                 .setNegativeButton("취소", null)
-                .show();
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            long value = parseAmount(amount.getText().toString());
+            String name = merchant.getText().toString().trim();
+            String enteredAt = occurredAt.getText().toString().trim();
+            ParsePosition position = new ParsePosition(0);
+            Date parsed = dateFormat.parse(enteredAt, position);
+            if (value <= 0 || name.isEmpty() || parsed == null || position.getIndex() != enteredAt.length()) {
+                Toast.makeText(this, "금액·사용처·거래 시각을 확인해주세요.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (!new TransactionRepository(this).correct(tx.transactionId, value,
+                    type.getSelectedItemPosition() == 0 ? Transaction.TYPE_EXPENSE : Transaction.TYPE_INCOME,
+                    name, (String) category.getSelectedItem(), (String) method.getSelectedItem(),
+                    parsed.getTime())) {
+                Toast.makeText(this, "거래 수정에 실패했습니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            dialog.dismiss();
+            render();
+        }));
+        dialog.show();
     }
 
     private void confirmDelete(Transaction tx) {

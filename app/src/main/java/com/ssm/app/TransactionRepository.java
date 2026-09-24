@@ -35,12 +35,23 @@ public final class TransactionRepository {
     public boolean correct(String transactionId, String merchant, String category, String paymentMethod) {
         try (TransactionDb db = new TransactionDb(context)) {
             Transaction old = db.find(transactionId);
+            return old != null && correct(transactionId, old.amount, old.type, merchant,
+                    category, paymentMethod, old.occurredAt);
+        }
+    }
+
+    public boolean correct(String transactionId, long amount, String type, String merchant,
+                           String category, String paymentMethod, long occurredAt) {
+        if (amount <= 0 || occurredAt <= 0 || merchant == null || merchant.isBlank()
+                || (!Transaction.TYPE_EXPENSE.equals(type) && !Transaction.TYPE_INCOME.equals(type))) return false;
+        try (TransactionDb db = new TransactionDb(context)) {
+            Transaction old = db.find(transactionId);
             if (old == null) return false;
             Transaction fixed = new Transaction(old.id, old.transactionId, old.sourceKey, old.sourcePackage,
-                    merchant, old.amount, old.type, category, paymentMethod,
-                    old.occurredAt, old.rawText, old.manual);
+                    merchant.trim(), amount, type, category, paymentMethod,
+                    occurredAt, old.rawText, old.manual);
             if (!db.update(fixed)) return false;
-            db.saveMerchantRule(merchant, category);
+            if (!old.manual) db.saveMerchantRule(old.merchant, category);
             db.resetSyncTargets(transactionId);
         }
         SyncCoordinator.schedule(context);
