@@ -10,7 +10,7 @@ permissions:
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     steps:
       - name: Checkout
@@ -49,11 +49,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d app/build/test-results/testDebugUnitTest
-          count="$(find app/build/test-results/testDebugUnitTest -type f -name '*.xml' | wc -l)"
-          test "$count" -gt 0
-          ! grep -R 'failures="[1-9]' app/build/test-results/testDebugUnitTest
-          ! grep -R 'errors="[1-9]' app/build/test-results/testDebugUnitTest
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          files = list(Path('app/build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
+          suites = [ET.parse(path).getroot() for path in files]
+          tests = sum(int(s.get('tests', 0)) for s in suites)
+          skipped = sum(int(s.get('skipped', 0)) for s in suites)
+          failures = sum(int(s.get('failures', 0)) + int(s.get('errors', 0)) for s in suites)
+          print(f'UNIT: suites={len(suites)}, tests={tests}, skipped={skipped}, failures={failures}')
+          assert suites and tests > 0 and skipped == 0 and failures == 0
+          PY
 
       - name: Android lint
         run: gradle --no-daemon lintDebug
@@ -91,6 +97,40 @@ jobs:
             > app/build/outputs/SHA256SUMS.txt
           cat app/build/outputs/SHA256SUMS.txt
 
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android emulator regression tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          script: |
+            gradle --no-daemon connectedDebugAndroidTest
+            adb shell am start -n com.ssm.app/.MainActivity
+            adb exec-out screencap -p > app/build/outputs/emulator-ui.png
+
+      - name: Verify emulator tests and capture UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          files = list(Path('app/build/outputs/androidTest-results/connected').rglob('TEST-*.xml'))
+          suites = [ET.parse(path).getroot() for path in files]
+          tests = sum(int(s.get('tests', 0)) for s in suites)
+          skipped = sum(int(s.get('skipped', 0)) for s in suites)
+          failures = sum(int(s.get('failures', 0)) + int(s.get('errors', 0)) for s in suites)
+          print(f'EMULATOR: suites={len(suites)}, tests={tests}, skipped={skipped}, failures={failures}')
+          assert suites and tests > 0 and skipped == 0 and failures == 0
+          PY
+          test -s app/build/outputs/emulator-ui.png
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -102,4 +142,16 @@ jobs:
             app/build/outputs/SHA256SUMS.txt
             app/build/reports/lint-results-debug.html
             app/build/test-results/testDebugUnitTest/
+            app/build/outputs/androidTest-results/connected/
+            app/build/outputs/emulator-ui.png
           if-no-files-found: error
+
+      - name: Upload emulator failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssm-emulator-failure
+          path: |
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
+          if-no-files-found: warn
