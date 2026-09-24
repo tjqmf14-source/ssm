@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK 36
+      - name: Android SDK 37
         shell: bash
         run: |
           set -euo pipefail
@@ -30,7 +30,7 @@ jobs:
           SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-37" "build-tools;37.0.0"
 
       - name: Install Gradle 9.6.0
         run: |
@@ -63,6 +63,10 @@ jobs:
         run: |
           set -euo pipefail
           test -s app/build/reports/lint-results-debug.html
+          warning_count="$(grep -c '<span class=\"mdl-chip__text\">Warning</span>' app/build/reports/lint-results-debug.html || true)"
+          error_count="$(grep -c '<span class=\"mdl-chip__text\">Error</span>' app/build/reports/lint-results-debug.html || true)"
+          test "$warning_count" -eq 0
+          test "$error_count" -eq 0
 
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
