@@ -99,4 +99,8 @@ public final class Transaction {
     public boolean isCancelled() {
         return STATUS_CANCELLED.equals(status);
     }
+
+    public boolean isDeleted() {
+        return STATUS_DELETED.equals(status);
+    }
 }
