@@ -167,7 +167,20 @@ jobs:
             adb shell settings put system font_scale 1.0
             gradle --no-daemon connectedDebugAndroidTest
 
+      - name: Print instrumentation results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_dir="app/build/outputs/androidTest-results/connected/debug"
+          if [ -d "$result_dir" ]; then
+            find "$result_dir" -type f -name '*.xml' -print -exec cat {} \;
+          else
+            echo "Instrumentation result directory missing: $result_dir"
+          fi
+
       - name: Verify instrumentation results
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -180,6 +193,7 @@ jobs:
           ! grep -R 'skipped="[1-9]' "$result_dir"
 
       - name: Upload emulator QA evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ssm-2.0-emulator-regression
