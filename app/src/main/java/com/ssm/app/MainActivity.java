@@ -29,6 +29,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat;
+
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -99,11 +101,12 @@ public final class MainActivity extends Activity {
 
     private void registerTransactionReceiver() {
         IntentFilter filter = new IntentFilter(PaymentNotificationListener.ACTION_TRANSACTION_CHANGED);
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(transactionReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(transactionReceiver, filter);
-        }
+        ContextCompat.registerReceiver(
+                this,
+                transactionReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+        );
     }
 
     private void buildShell() {
