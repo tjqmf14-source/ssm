@@ -4,6 +4,8 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -31,6 +33,7 @@ import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -270,24 +273,55 @@ public final class MainActivity extends Activity {
 
     private void showEditDialog(Transaction tx) {
         LinearLayout form = form();
-        EditText merchant = input("사용처", InputType.TYPE_CLASS_TEXT);
+        Spinner type = spinner(new String[]{"지출","입금"}, tx.isExpense() ? 0 : 1);
+        EditText amount = input("금액", InputType.TYPE_CLASS_NUMBER);
+        amount.setText(String.valueOf(tx.amount));
+        EditText merchant = input("사용처 / 보낸 사람", InputType.TYPE_CLASS_TEXT);
         merchant.setText(tx.merchant);
         Spinner category = spinner(CATEGORIES, indexOf(CATEGORIES, tx.category));
         Spinner method = spinner(METHODS, indexOf(METHODS, tx.paymentMethod));
-        form.addView(merchant); form.addView(category); form.addView(method);
-        new AlertDialog.Builder(this)
-                .setTitle("거래 보정")
-                .setMessage("같은 가맹점의 다음 거래부터 선택한 카테고리를 자동 적용합니다.")
+        final long[] occurredAt = {tx.occurredAt};
+        Button time = secondaryButton("거래 시간 · " + formatTransactionTime(tx.occurredAt),
+                v -> pickTransactionTime(occurredAt, timeButton(v)));
+
+        form.addView(type);
+        form.addView(amount);
+        form.addView(merchant);
+        form.addView(category);
+        form.addView(method);
+        margin(time, 10);
+        form.addView(time);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("거래 수정")
+                .setMessage("금액·유형·시간을 포함해 수정합니다. 카테고리 보정은 원래 인식된 가맹점과 수정된 가맹점 모두에 학습됩니다.")
                 .setView(form)
-                .setPositiveButton("저장", (d,w) -> {
-                    String name = merchant.getText().toString().trim();
-                    if (name.isEmpty()) return;
-                    new TransactionRepository(this).correct(tx.transactionId, name,
-                            (String) category.getSelectedItem(), (String) method.getSelectedItem());
-                    render();
-                })
+                .setPositiveButton("저장", null)
                 .setNegativeButton("취소", null)
-                .show();
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            long value = parseAmount(amount.getText().toString());
+            String name = merchant.getText().toString().trim();
+            if (value <= 0 || name.isEmpty()) {
+                Toast.makeText(this, "금액과 사용처를 확인해주세요.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            boolean updated = new TransactionRepository(this).correct(
+                    tx.transactionId,
+                    value,
+                    type.getSelectedItemPosition() == 0 ? Transaction.TYPE_EXPENSE : Transaction.TYPE_INCOME,
+                    name,
+                    (String) category.getSelectedItem(),
+                    (String) method.getSelectedItem(),
+                    occurredAt[0]);
+            if (!updated) {
+                Toast.makeText(this, "거래 수정에 실패했습니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            dialog.dismiss();
+            render();
+        }));
+        dialog.show();
     }
 
     private void confirmDelete(Transaction tx) {
@@ -467,6 +501,34 @@ public final class MainActivity extends Activity {
     private int indexOf(String[] values, String target) {
         for (int i = 0; i < values.length; i++) if (values[i].equals(target)) return i;
         return values.length - 1;
+    }
+
+    private Button timeButton(View view) {
+        return (Button) view;
+    }
+
+    private void pickTransactionTime(long[] holder, Button target) {
+        Calendar current = Calendar.getInstance();
+        current.setTimeInMillis(holder[0]);
+        new DatePickerDialog(this, (dateView, year, month, day) -> {
+            Calendar picked = Calendar.getInstance();
+            picked.setTimeInMillis(holder[0]);
+            picked.set(Calendar.YEAR, year);
+            picked.set(Calendar.MONTH, month);
+            picked.set(Calendar.DAY_OF_MONTH, day);
+            new TimePickerDialog(this, (timeView, hour, minute) -> {
+                picked.set(Calendar.HOUR_OF_DAY, hour);
+                picked.set(Calendar.MINUTE, minute);
+                picked.set(Calendar.SECOND, 0);
+                picked.set(Calendar.MILLISECOND, 0);
+                holder[0] = picked.getTimeInMillis();
+                target.setText("거래 시간 · " + formatTransactionTime(holder[0]));
+            }, picked.get(Calendar.HOUR_OF_DAY), picked.get(Calendar.MINUTE), true).show();
+        }, current.get(Calendar.YEAR), current.get(Calendar.MONTH), current.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private String formatTransactionTime(long millis) {
+        return new SimpleDateFormat("yyyy. M. d. HH:mm", Locale.KOREA).format(new Date(millis));
     }
 
     private long parseAmount(String value) {
