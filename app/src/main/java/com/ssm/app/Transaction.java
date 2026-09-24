@@ -5,7 +5,7 @@ public final class Transaction {
     public static final String TYPE_INCOME = "income";
 
     public static final String STATUS_NORMAL = "normal";
-    public static final String STATUS_CANCELLED = "cancelled";
+    public static final String STATUS_CANCELLED = "cancelled";\n    public static final String STATUS_DELETED = "deleted";
 
     public final long id;
     public final String transactionId;

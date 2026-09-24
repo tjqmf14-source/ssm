@@ -29,12 +29,31 @@ public final class CalendarSyncWorker extends Worker {
                 return Result.success();
             }
 
+            if (transaction.isDeleted()) {
+                for (TransactionDb.CalendarSyncRecord record : db.getCalendarSyncRecords(transactionId)) {
+                    if (record.eventId != null) {
+                        CalendarSync.deleteTransactionEvent(getApplicationContext(), record.eventId);
+                    }
+                    db.markCalendarSync(transactionId, record.calendarId, null, "DELETED");
+                }
+                return Result.success();
+            }
+
             List<Long> calendarIds = CalendarSync.getSelectedCalendarIds(getApplicationContext());
             if (calendarIds.isEmpty()) return Result.success();
 
             for (Long calendarId : calendarIds) {
                 if (calendarId == null || calendarId < 0L) continue;
-                if (db.hasCalendarSync(transactionId, calendarId)) continue;
+
+                Long existingEventId = db.getCalendarEventId(transactionId, calendarId);
+                if (existingEventId != null) {
+                    if (!CalendarSync.updateTransactionEvent(getApplicationContext(), transaction, existingEventId)) {
+                        db.markCalendarSync(transactionId, calendarId, existingEventId, TransactionDb.SYNC_RETRY);
+                        return Result.retry();
+                    }
+                    db.markCalendarSync(transactionId, calendarId, existingEventId, TransactionDb.SYNC_SUCCESS);
+                    continue;
+                }
 
                 Long eventId = CalendarSync.addTransactionEvent(getApplicationContext(), transaction, calendarId);
                 if (eventId == null) {

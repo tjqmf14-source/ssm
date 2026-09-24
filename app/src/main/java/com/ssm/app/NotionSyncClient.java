@@ -57,6 +57,10 @@ public final class NotionSyncClient {
         if (token == null || token.trim().isEmpty()) return Result.auth(401);
         try {
             String existing = findByTransactionId(token, transaction.transactionId);
+            if (transaction.isDeleted() || transaction.isCancelled()) {
+                if (existing == null) return Result.success(null, 200);
+                return archivePage(token, existing);
+            }
             if (existing != null) return updatePage(token, existing, transaction);
             return createPage(token, transaction);
         } catch (AuthException error) {
@@ -102,6 +106,18 @@ public final class NotionSyncClient {
                 buildCreatePayload(transaction)
         );
         return toResult(response);
+    }
+
+    private static Result archivePage(String token, String pageId) throws Exception {
+        Response response = request(
+                "PATCH",
+                API_BASE + "/pages/" + pageId,
+                token,
+                "{\"archived\":true}"
+        );
+        Result result = toResult(response);
+        if (result.success && result.pageId == null) return Result.success(pageId, response.code);
+        return result;
     }
 
     private static Result updatePage(String token, String pageId, Transaction transaction) throws Exception {

@@ -175,12 +175,33 @@ public final class CalendarSync {
     public static Long addTransactionEvent(Context context, Transaction transaction, long calendarId) {
         if (!hasPermission(context) || calendarId < 0L) return null;
 
+        ContentValues values = eventValues(transaction);
+        values.put(CalendarContract.Events.CALENDAR_ID, calendarId);
+
+        ContentResolver resolver = context.getContentResolver();
+        Uri uri = resolver.insert(CalendarContract.Events.CONTENT_URI, values);
+        if (uri == null) return null;
+        return ContentUris.parseId(uri);
+    }
+
+    public static boolean updateTransactionEvent(Context context, Transaction transaction, long eventId) {
+        if (!hasPermission(context) || eventId < 0L) return false;
+        Uri uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId);
+        return context.getContentResolver().update(uri, eventValues(transaction), null, null) > 0;
+    }
+
+    public static boolean deleteTransactionEvent(Context context, long eventId) {
+        if (!hasPermission(context) || eventId < 0L) return false;
+        Uri uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId);
+        return context.getContentResolver().delete(uri, null, null) > 0;
+    }
+
+    private static ContentValues eventValues(Transaction transaction) {
         String prefix = transaction.isCancelled()
                 ? "취소"
                 : (transaction.isExpense() ? "지출" : "입금");
 
         ContentValues values = new ContentValues();
-        values.put(CalendarContract.Events.CALENDAR_ID, calendarId);
         values.put(CalendarContract.Events.TITLE,
                 prefix + " " + formatWon(transaction.amount) + " · " + transaction.merchant);
         values.put(CalendarContract.Events.DESCRIPTION,
@@ -188,11 +209,7 @@ public final class CalendarSync {
         values.put(CalendarContract.Events.DTSTART, transaction.occurredAt);
         values.put(CalendarContract.Events.DTEND, transaction.occurredAt + 5 * 60 * 1000L);
         values.put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().getID());
-
-        ContentResolver resolver = context.getContentResolver();
-        Uri uri = resolver.insert(CalendarContract.Events.CONTENT_URI, values);
-        if (uri == null) return null;
-        return ContentUris.parseId(uri);
+        return values;
     }
 
     private static String formatWon(long amount) {

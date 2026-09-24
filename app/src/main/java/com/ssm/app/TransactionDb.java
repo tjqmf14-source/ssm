@@ -10,6 +10,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class TransactionDb extends SQLiteOpenHelper {
+    public static final class CategoryTotal {
+        public final String category;
+        public final long amount;
+
+        CategoryTotal(String category, long amount) {
+            this.category = category;
+            this.amount = amount;
+        }
+    }
+
+    public static final class CalendarSyncRecord {
+        public final long calendarId;
+        public final Long eventId;
+        public final String state;
+
+        CalendarSyncRecord(long calendarId, Long eventId, String state) {
+            this.calendarId = calendarId;
+            this.eventId = eventId;
+            this.state = state;
+        }
+    }
     private static final String DB_NAME = "ssm.db";
     private static final int DB_VERSION = 2;
 
@@ -262,18 +283,44 @@ public final class TransactionDb extends SQLiteOpenHelper {
     }
 
     public boolean hasCalendarSync(String transactionId, long calendarId) {
+        return getCalendarEventId(transactionId, calendarId) != null;
+    }
+
+    public Long getCalendarEventId(String transactionId, long calendarId) {
         try (Cursor cursor = getReadableDatabase().query(
                 "calendar_sync",
                 new String[]{"event_id"},
-                "transaction_id = ? AND calendar_id = ? AND state = ?",
-                new String[]{transactionId, String.valueOf(calendarId), SYNC_SUCCESS},
+                "transaction_id = ? AND calendar_id = ?",
+                new String[]{transactionId, String.valueOf(calendarId)},
                 null,
                 null,
                 null,
                 "1"
         )) {
-            return cursor.moveToFirst() && !cursor.isNull(0);
+            return cursor.moveToFirst() && !cursor.isNull(0) ? cursor.getLong(0) : null;
         }
+    }
+
+    public List<CalendarSyncRecord> getCalendarSyncRecords(String transactionId) {
+        List<CalendarSyncRecord> result = new ArrayList<>();
+        try (Cursor cursor = getReadableDatabase().query(
+                "calendar_sync",
+                new String[]{"calendar_id", "event_id", "state"},
+                "transaction_id = ?",
+                new String[]{transactionId},
+                null,
+                null,
+                "calendar_id ASC"
+        )) {
+            while (cursor.moveToNext()) {
+                result.add(new CalendarSyncRecord(
+                        cursor.getLong(0),
+                        cursor.isNull(1) ? null : cursor.getLong(1),
+                        cursor.getString(2)
+                ));
+            }
+        }
+        return result;
     }
 
     public void markCalendarSync(String transactionId, long calendarId, Long eventId, String state) {
@@ -366,8 +413,55 @@ public final class TransactionDb extends SQLiteOpenHelper {
     public boolean deleteTransaction(long rowId) {
         Transaction tx = getByRowId(rowId);
         if (tx == null) return false;
-        getWritableDatabase().delete("calendar_sync", "transaction_id = ?", new String[]{tx.transactionId});
-        return getWritableDatabase().delete("transactions", "id = ?", new String[]{String.valueOf(rowId)}) > 0;
+
+        ContentValues values = new ContentValues();
+        values.put("status", Transaction.STATUS_DELETED);
+        values.put("notion_sync_state", SYNC_PENDING);
+        values.put("updated_at", System.currentTimeMillis());
+        return getWritableDatabase().update(
+                "transactions",
+                values,
+                "id = ?",
+                new String[]{String.valueOf(rowId)}
+        ) > 0;
+    }
+
+    public int getPendingNotionCount() {
+        try (Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM transactions WHERE status != ? AND notion_sync_state != ?",
+                new String[]{Transaction.STATUS_DELETED, SYNC_SUCCESS}
+        )) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    public int getNeedsReviewCount() {
+        try (Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM transactions WHERE status = ? AND (confidence < 0.9 OR category = '기타')",
+                new String[]{Transaction.STATUS_NORMAL}
+        )) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    public List<CategoryTotal> getCategoryTotalsBetween(long startInclusive, long endExclusive) {
+        List<CategoryTotal> result = new ArrayList<>();
+        try (Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT category, COALESCE(SUM(amount), 0) FROM transactions " +
+                        "WHERE type = ? AND status = ? AND occurred_at >= ? AND occurred_at < ? " +
+                        "GROUP BY category ORDER BY SUM(amount) DESC",
+                new String[]{
+                        Transaction.TYPE_EXPENSE,
+                        Transaction.STATUS_NORMAL,
+                        String.valueOf(startInclusive),
+                        String.valueOf(endExclusive)
+                }
+        )) {
+            while (cursor.moveToNext()) {
+                result.add(new CategoryTotal(cursor.getString(0), cursor.getLong(1)));
+            }
+        }
+        return result;
     }
 
     public long sumByTypeBetween(String type, long startInclusive, long endExclusive) {
@@ -394,8 +488,8 @@ public final class TransactionDb extends SQLiteOpenHelper {
         try (Cursor cursor = getReadableDatabase().query(
                 "transactions",
                 transactionColumns(),
-                null,
-                null,
+                "status != ?",
+                new String[]{Transaction.STATUS_DELETED},
                 null,
                 null,
                 "occurred_at DESC",
