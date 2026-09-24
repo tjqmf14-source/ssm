@@ -16,6 +16,7 @@ android {
     buildTypes {
         release {
             minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -26,6 +27,14 @@ android {
     }
 
     testOptions { unitTests.returnDefaultValues = true }
+
+    // API 37 is still a preview SDK on the current CI channel. Stay on the
+    // latest stable API 36 and suppress only the two preview-availability hints.
+    lint {
+        abortOnError = true
+        warningsAsErrors = true
+        disable += ['OldTargetApi', 'GradleDependency']
+    }
 }
 
 dependencies { testImplementation 'junit:junit:4.13.2' }

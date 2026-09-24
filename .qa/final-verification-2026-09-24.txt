@@ -1,0 +1,3 @@
+SSM 2.0 final verification trigger.
+Product baseline: 71e75a1277c28dbf62eb387744e2420ea6733f55
+This file changes no production code and exists only to trigger pull_request CI against the current main product tree.
