@@ -113,15 +113,39 @@ public final class NotificationParser {
     }
 
     private static String extractMerchant(String title, String text, String combined, String amountToken) {
-        String candidate = !safe(title).trim().isEmpty() ? safe(title) : safe(text);
+        String safeTitle = safe(title).trim();
+        String safeText = safe(text).trim();
+
+        boolean providerTitle = looksLikeProviderTitle(safeTitle);
+        String candidate = providerTitle && !safeText.isEmpty()
+                ? safeText
+                : (!safeTitle.isEmpty() ? safeTitle : safeText);
         if (candidate.trim().isEmpty()) candidate = combined;
 
         candidate = candidate
                 .replace(amountToken, " ")
                 .replaceAll("(?i)\\b(현대|우리|신한|국민|kb|하나|nh|롯데|삼성)\\s*카드\\b", " ")
+                .replaceAll("(?i)카카오뱅크|삼성페이", " ")
                 .replaceAll("(?i)잔액\\s*[0-9,]+원", " ");
 
-        return MerchantNormalizer.cleanDisplayName(candidate);
+        String cleaned = MerchantNormalizer.cleanDisplayName(candidate);
+        if ("거래".equals(cleaned) && !safeText.isEmpty() && !safeText.equals(candidate)) {
+            cleaned = MerchantNormalizer.cleanDisplayName(safeText.replace(amountToken, " "));
+        }
+        return cleaned;
+    }
+
+    private static boolean looksLikeProviderTitle(String title) {
+        String normalized = safe(title).toLowerCase(Locale.KOREA)
+                .replaceAll("[\\[\\](){}]", " ")
+                .trim();
+        return normalized.isEmpty()
+                || normalized.contains("카드")
+                || normalized.contains("은행")
+                || normalized.contains("뱅크")
+                || normalized.contains("삼성페이")
+                || normalized.contains("pay")
+                || normalized.contains("페이");
     }
 
     private static boolean containsAny(String text, String[] words) {

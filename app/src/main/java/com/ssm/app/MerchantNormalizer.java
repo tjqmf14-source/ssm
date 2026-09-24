@@ -8,22 +8,25 @@ public final class MerchantNormalizer {
 
     public static String cleanDisplayName(String value) {
         String text = value == null ? "" : value;
-        text = text.replaceAll("[\\[\\]{}]", " ")
-                .replaceAll("(?i)승인취소|결제취소|취소완료|승인|결제|이용|사용|출금|입금|급여|체크카드|신용카드|일시불", " ")
+        text = text
+                .replaceAll("[\\[\\]{}]", " ")
+                .replaceAll("(?i)승인취소|결제취소|취소완료|승인|결제|이용|사용|출금|입금|급여|체크카드|신용카드|일시불|완료", " ")
+                .replaceAll("(?i)할부\\s*\\d+\\s*개월", " ")
+                .replaceAll("(?i)승인번호\\s*[:：]?\\s*[0-9A-Za-z-]+", " ")
+                .replaceAll("(?i)잔액\\s*[0-9,]+원", " ")
+                .replaceAll("(?i)주식회사|㈜", " ")
+                .replaceAll("^\\s*\\(?\\d{2,4}\\)?\\s*[|·:-]?\\s*", " ")
                 .replaceAll("\\b\\d{2,4}[-*xX]?\\d{2,4}\\b", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
-        if (text.length() > 48) {
-            text = text.substring(0, 48).trim();
-        }
+        if (text.length() > 48) text = text.substring(0, 48).trim();
         return text.isEmpty() ? "거래" : text;
     }
 
     public static String normalize(String value) {
-        String text = Normalizer.normalize(cleanDisplayName(value), Normalizer.Form.NFKC)
+        return Normalizer.normalize(cleanDisplayName(value), Normalizer.Form.NFKC)
                 .toLowerCase(Locale.KOREA)
                 .replaceAll("[^0-9a-z가-힣]", "");
-        return text;
     }
 
     public static boolean similar(String left, String right) {
