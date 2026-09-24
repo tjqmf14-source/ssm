@@ -49,11 +49,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d app/build/test-results/testDebugUnitTest
-          count="$(find app/build/test-results/testDebugUnitTest -type f -name '*.xml' | wc -l)"
-          test "$count" -gt 0
-          ! grep -R 'failures="[1-9]' app/build/test-results/testDebugUnitTest
-          ! grep -R 'errors="[1-9]' app/build/test-results/testDebugUnitTest
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root_dir = Path("app/build/test-results/testDebugUnitTest")
+          xmls = sorted(root_dir.glob("*.xml")) if root_dir.is_dir() else []
+          tests = failures = errors = skipped = 0
+          for path in xmls:
+              root = ET.parse(path).getroot()
+              tests += len(root.findall(".//testcase"))
+              failures += len(root.findall(".//failure"))
+              errors += len(root.findall(".//error"))
+              skipped += len(root.findall(".//skipped"))
+          print(f"unit xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped}")
+          if not xmls or tests <= 0 or failures or errors or skipped:
+              sys.exit(1)
+          PY
 
       - name: Android lint
         run: gradle --no-daemon lintDebug
@@ -155,28 +168,40 @@ jobs:
             set -eu
             adb shell wm size 1080x2400
 
-            adb shell wm density 540
-            adb shell settings put system font_scale 1.0
-            gradle --no-daemon connectedDebugAndroidTest
+            run_profile() {
+              profile="$1"
+              density="$2"
+              font_scale="$3"
+              adb shell wm density "$density"
+              adb shell settings put system font_scale "$font_scale"
 
-            adb shell wm density 480
-            adb shell settings put system font_scale 1.30
-            gradle --no-daemon connectedDebugAndroidTest
+              status=0
+              gradle --no-daemon connectedDebugAndroidTest || status=$?
 
-            adb shell wm density 420
-            adb shell settings put system font_scale 1.0
-            gradle --no-daemon connectedDebugAndroidTest
+              result_src="app/build/outputs/androidTest-results/connected/debug"
+              report_src="app/build/reports/androidTests/connected/debug"
+              evidence="app/build/qa-emulator/$profile"
+              mkdir -p "$evidence/results" "$evidence/report"
+              if [ -d "$result_src" ]; then cp -a "$result_src/." "$evidence/results/"; fi
+              if [ -d "$report_src" ]; then cp -a "$report_src/." "$evidence/report/"; fi
+
+              if [ "$status" -ne 0 ]; then exit "$status"; fi
+            }
+
+            run_profile "320dp" 540 1.0
+            run_profile "360dp-large-font" 480 1.30
+            run_profile "412dp" 420 1.0
 
       - name: Print instrumentation results
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          result_dir="app/build/outputs/androidTest-results/connected/debug"
-          if [ -d "$result_dir" ]; then
-            find "$result_dir" -type f -name '*.xml' -print -exec cat {} \;
+          evidence_dir="app/build/qa-emulator"
+          if [ -d "$evidence_dir" ]; then
+            find "$evidence_dir" -type f -name '*.xml' -print -exec cat {} \;
           else
-            echo "Instrumentation result directory missing: $result_dir"
+            echo "Emulator evidence directory missing: $evidence_dir"
           fi
 
       - name: Verify instrumentation results
@@ -184,13 +209,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          result_dir="app/build/outputs/androidTest-results/connected/debug"
-          test -d "$result_dir"
-          count="$(find "$result_dir" -type f -name '*.xml' | wc -l)"
-          test "$count" -gt 0
-          ! grep -R 'failures="[1-9]' "$result_dir"
-          ! grep -R 'errors="[1-9]' "$result_dir"
-          ! grep -R 'skipped="[1-9]' "$result_dir"
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          base = Path("app/build/qa-emulator")
+          profiles = ("320dp", "360dp-large-font", "412dp")
+          failed = False
+          for profile in profiles:
+              result_dir = base / profile / "results"
+              xmls = sorted(result_dir.glob("*.xml")) if result_dir.is_dir() else []
+              tests = failures = errors = skipped = 0
+              for path in xmls:
+                  root = ET.parse(path).getroot()
+                  tests += len(root.findall(".//testcase"))
+                  failures += len(root.findall(".//failure"))
+                  errors += len(root.findall(".//error"))
+                  skipped += len(root.findall(".//skipped"))
+              print(f"{profile}: xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped}")
+              if not xmls or tests <= 0 or failures or errors or skipped:
+                  failed = True
+          if failed:
+              sys.exit(1)
+          PY
 
       - name: Upload emulator QA evidence
         if: always()
@@ -198,6 +240,7 @@ jobs:
         with:
           name: ssm-2.0-emulator-regression
           path: |
+            app/build/qa-emulator/
             app/build/outputs/androidTest-results/connected/debug/
             app/build/reports/androidTests/connected/debug/
           if-no-files-found: error

@@ -12,6 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.scrollTo;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withHint;
@@ -31,8 +32,8 @@ public class MainActivityUiTest {
 
     @Test public void editDialogExposesAmountTypeMerchantAndTimeControls() {
         try (ActivityScenario<MainActivity> ignored = ActivityScenario.launch(MainActivity.class)) {
-            Espresso.onView(withText("UI 테스트 상점")).check(matches(isDisplayed()));
-            Espresso.onView(withText("수정")).perform(click());
+            Espresso.onView(withText("UI 테스트 상점")).perform(scrollTo()).check(matches(isDisplayed()));
+            Espresso.onView(withText("수정")).perform(scrollTo(), click());
 
             Espresso.onView(withText("거래 수정")).check(matches(isDisplayed()));
             Espresso.onView(withHint("금액")).check(matches(withText("12000")));
