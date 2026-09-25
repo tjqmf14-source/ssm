@@ -1,0 +1,56 @@
+name: Galaxy Real Device QA
+
+on:
+  push:
+    branches:
+      - qa/galaxy-real-device-20260925
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  galaxy-real-device:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: SDK packages
+        shell: pwsh
+        run: |
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Galaxy real-device QA
+        shell: pwsh
+        run: |
+          .\scripts\galaxy-device-qa.ps1
+
+      - name: Upload Galaxy QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: galaxy-real-device-qa-${{ github.sha }}
+          path: app/build/galaxy-real-device/
+          if-no-files-found: error
