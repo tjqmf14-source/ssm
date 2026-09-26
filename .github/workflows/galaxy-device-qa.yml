@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   galaxy-real-device:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: [self-hosted, Windows, X64, galaxy]
     timeout-minutes: 60
 
     steps:
