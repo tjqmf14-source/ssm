@@ -24,10 +24,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Python 3
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
 
       - name: Gradle 9.6.0
         uses: gradle/actions/setup-gradle@v4
