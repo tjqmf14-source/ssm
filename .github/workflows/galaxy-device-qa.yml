@@ -34,25 +34,23 @@ jobs:
         shell: 'powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {0}'
         run: |
           $ErrorActionPreference = "Stop"
-          $sdkRoot = Join-Path $env:RUNNER_TEMP "android-sdk"
+          $sdkRoot = "C:\actions-runner-ssm\android-sdk"
           $zip = Join-Path $env:RUNNER_TEMP "commandlinetools-win.zip"
           $extract = Join-Path $env:RUNNER_TEMP "android-cmdline-extract"
 
-          Remove-Item $sdkRoot -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
-
           New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
-          New-Item -ItemType Directory -Force -Path $extract | Out-Null
-
-          Invoke-WebRequest -UseBasicParsing -Uri "https://dl.google.com/android/repository/commandlinetools-win-12266719_latest.zip" -OutFile $zip
-          Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
 
           $latest = Join-Path $sdkRoot "cmdline-tools\latest"
-          New-Item -ItemType Directory -Force -Path $latest | Out-Null
-          Copy-Item (Join-Path $extract "cmdline-tools\*") $latest -Recurse -Force
-
           $sdkManager = Join-Path $latest "bin\sdkmanager.bat"
+          if (!(Test-Path $sdkManager)) {
+            New-Item -ItemType Directory -Force -Path $extract | Out-Null
+            Invoke-WebRequest -UseBasicParsing -Uri "https://dl.google.com/android/repository/commandlinetools-win-12266719_latest.zip" -OutFile $zip
+            Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+            New-Item -ItemType Directory -Force -Path $latest | Out-Null
+            Copy-Item (Join-Path $extract "cmdline-tools\*") $latest -Recurse -Force
+          }
           if (!(Test-Path $sdkManager)) { throw "sdkmanager.bat missing after extraction" }
 
           "ANDROID_HOME=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -61,16 +59,21 @@ jobs:
           (Join-Path $sdkRoot "build-tools\36.0.0") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           (Join-Path $latest "bin") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-          $yesFile = Join-Path $env:RUNNER_TEMP "android-license-yes.txt"
-          1..50 | ForEach-Object { "y" } | Set-Content -Path $yesFile -Encoding ASCII
-          $licenseCommand = "type `"$yesFile`" | `"$sdkManager`" --sdk_root=`"$sdkRoot`" --licenses"
-          & $env:ComSpec /d /s /c $licenseCommand
-          if ($LASTEXITCODE -ne 0) { throw "Android SDK license acceptance failed" }
+          $adbExe = Join-Path $sdkRoot "platform-tools\adb.exe"
+          $androidJar = Join-Path $sdkRoot "platforms\android-36\android.jar"
+          $aaptExe = Join-Path $sdkRoot "build-tools\36.0.0\aapt.exe"
+          if (!(Test-Path $adbExe) -or !(Test-Path $androidJar) -or !(Test-Path $aaptExe)) {
+            $yesFile = Join-Path $env:RUNNER_TEMP "android-license-yes.txt"
+            1..50 | ForEach-Object { "y" } | Set-Content -Path $yesFile -Encoding ASCII
+            $licenseCommand = "type `"$yesFile`" | `"$sdkManager`" --sdk_root=`"$sdkRoot`" --licenses"
+            & $env:ComSpec /d /s /c $licenseCommand
+            if ($LASTEXITCODE -ne 0) { throw "Android SDK license acceptance failed" }
 
-          & $sdkManager --sdk_root=$sdkRoot "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-          if ($LASTEXITCODE -ne 0) { throw "Android SDK package install failed" }
+            & $sdkManager --sdk_root=$sdkRoot "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+            if ($LASTEXITCODE -ne 0) { throw "Android SDK package install failed" }
+          }
 
-          if (!(Test-Path (Join-Path $sdkRoot "platform-tools\adb.exe"))) { throw "adb.exe missing after Android SDK install" }
+          if (!(Test-Path $adbExe)) { throw "adb.exe missing after Android SDK install" }
 
       - name: Galaxy real-device QA
         shell: 'powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {0}'
