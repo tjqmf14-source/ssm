@@ -16,6 +16,7 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
+@RealDeviceOnly
 public class RealDeviceProbeInstrumentedTest {
     private Context context() {
         return ApplicationProvider.getApplicationContext();
