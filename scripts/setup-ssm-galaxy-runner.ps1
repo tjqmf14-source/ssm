@@ -23,13 +23,15 @@ if ($InstallDir -ieq "C:\actions-runner-corecare") {
 }
 
 $repoUrl = "https://github.com/$Repo"
-$runnerName = "SSM-Galaxy-$env:COMPUTERNAME"
+$safeComputerName = ($env:COMPUTERNAME -replace '[^A-Za-z0-9_-]', '-')
+if ([string]::IsNullOrWhiteSpace($safeComputerName) -or $safeComputerName -notmatch '[A-Za-z0-9]') { $safeComputerName = "Windows" }
+$runnerName = "SSM-Galaxy-$safeComputerName"
 
 if (Test-Path (Join-Path $InstallDir ".runner")) {
     Write-Host "SSM runner가 이미 구성되어 있습니다: $InstallDir"
     $serviceFile = Join-Path $InstallDir ".service"
     if (Test-Path $serviceFile) {
-        $svc = (Get-Content $serviceFile -Raw).Trim()
+        $svc = (Get-Content $serviceFile -Raw -Encoding UTF8).Trim()
         Set-Service -Name $svc -StartupType Automatic
         Start-Service -Name $svc
         Get-Service -Name $svc | Format-List Name,Status,StartType
@@ -73,7 +75,7 @@ try {
 
     if (!(Test-Path ".service")) { Fail "runner 서비스 파일(.service)이 생성되지 않았습니다." }
 
-    $svc = (Get-Content ".service" -Raw).Trim()
+    $svc = (Get-Content ".service" -Raw -Encoding UTF8).Trim()
     Set-Service -Name $svc -StartupType Automatic
     Start-Service -Name $svc
 
@@ -87,10 +89,15 @@ try {
     Write-Host ""
     Write-Host "SSM Galaxy runner 등록 완료."
     Write-Host "다음으로 Galaxy를 USB 연결하고 USB 디버깅을 허용하세요."
-    if (Get-Command adb -ErrorAction SilentlyContinue) {
-        adb devices -l
+    $adb = Get-Command adb -ErrorAction SilentlyContinue
+    if (-not $adb) {
+        $candidate = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
+        if (Test-Path $candidate) { $adb = Get-Item $candidate }
+    }
+    if ($adb) {
+        & $adb.Source devices -l
     } else {
-        Write-Warning "adb가 PATH에 없습니다. Galaxy QA workflow의 SDK 단계에서 adb는 설치되지만, 로컬 연결 확인에는 Android platform-tools가 필요합니다."
+        Write-Warning "adb가 PATH에 없습니다. Galaxy QA workflow가 시작되면 Android SDK/platform-tools를 자동 설치합니다."
     }
 }
 finally {
