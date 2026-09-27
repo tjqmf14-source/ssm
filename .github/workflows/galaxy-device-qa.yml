@@ -31,7 +31,7 @@ jobs:
           gradle-version: '9.6.0'
 
       - name: Android SDK 36
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $sdkRoot = Join-Path $env:RUNNER_TEMP "android-sdk"
@@ -70,7 +70,7 @@ jobs:
           if (!(Test-Path (Join-Path $sdkRoot "platform-tools\adb.exe"))) { throw "adb.exe missing after Android SDK install" }
 
       - name: Galaxy real-device QA
-        shell: pwsh
+        shell: powershell
         run: |
           .\scripts\galaxy-device-qa.ps1
 
