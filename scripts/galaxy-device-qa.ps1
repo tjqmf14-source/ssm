@@ -50,10 +50,23 @@ if (-not (Get-Command adb -ErrorAction SilentlyContinue)) { Fail "ADB_NOT_FOUND"
 if (-not (Get-Command gradle -ErrorAction SilentlyContinue)) { Fail "GRADLE_NOT_FOUND" }
 
 Run-Adb start-server
-$deviceLines = @((& adb devices) | Select-Object -Skip 1 | Where-Object { $_ -match "\S+\s+device$" })
-(& adb devices -l) | Out-File -Encoding utf8 "$EvidenceDir\adb-devices.txt"
+$deviceLines = @()
+for ($attempt = 1; $attempt -le 36; $attempt++) {
+    $adbState = @(& adb devices -l)
+    $adbState | Out-File -Encoding utf8 "$EvidenceDir\adb-devices.txt"
+    $deviceLines = @($adbState | Select-Object -Skip 1 | Where-Object { $_ -match "\S+\s+device(\s|$)" })
+
+    if ($deviceLines.Count -eq 1) { break }
+
+    if (($adbState -join [Environment]::NewLine) -match "\sunauthorized(\s|$)") {
+        Write-Host "ADB_UNAUTHORIZED: Galaxy 화면을 켜고 '이 컴퓨터에서 항상 허용'을 체크한 뒤 USB 디버깅 허용을 누르세요. ($attempt/36)"
+    } elseif ($attempt -eq 1) {
+        Write-Host "GALAXY_WAITING: USB 케이블과 USB 디버깅 연결을 기다립니다."
+    }
+    Start-Sleep -Seconds 5
+}
 if ($deviceLines.Count -ne 1) {
-    Fail "GALAXY_DEVICE_REQUIRED: exactly one authorized Android device must be connected."
+    Fail "GALAXY_DEVICE_REQUIRED: one authorized Galaxy was not available within 180 seconds. See adb-devices.txt."
 }
 
 $serial = (($deviceLines[0] -split "\s+")[0]).Trim()
