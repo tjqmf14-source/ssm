@@ -186,17 +186,17 @@ jobs:
             adb shell settings put system font_scale 1.0
             rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
             mkdir -p app/build/qa-emulator/320dp/results app/build/qa-emulator/320dp/report
-            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="com.ssm.app.TransactionFlowInstrumentedTest,com.ssm.app.MainActivityUiTest" || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/320dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/320dp/report/; fi; exit "$status"
+            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.ssm.app.RealDeviceOnly || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/320dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/320dp/report/; fi; exit "$status"
             adb shell wm density 480
             adb shell settings put system font_scale 1.30
             rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
             mkdir -p app/build/qa-emulator/360dp-large-font/results app/build/qa-emulator/360dp-large-font/report
-            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="com.ssm.app.TransactionFlowInstrumentedTest,com.ssm.app.MainActivityUiTest" || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/360dp-large-font/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/360dp-large-font/report/; fi; exit "$status"
+            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.ssm.app.RealDeviceOnly || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/360dp-large-font/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/360dp-large-font/report/; fi; exit "$status"
             adb shell wm density 420
             adb shell settings put system font_scale 1.0
             rm -rf app/build/outputs/androidTest-results/connected/debug app/build/reports/androidTests/connected/debug
             mkdir -p app/build/qa-emulator/412dp/results app/build/qa-emulator/412dp/report
-            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="com.ssm.app.TransactionFlowInstrumentedTest,com.ssm.app.MainActivityUiTest" || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/412dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/412dp/report/; fi; exit "$status"
+            status=0; gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.ssm.app.RealDeviceOnly || status=$?; if [ -d app/build/outputs/androidTest-results/connected/debug ]; then cp -a app/build/outputs/androidTest-results/connected/debug/. app/build/qa-emulator/412dp/results/; fi; if [ -d app/build/reports/androidTests/connected/debug ]; then cp -a app/build/reports/androidTests/connected/debug/. app/build/qa-emulator/412dp/report/; fi; exit "$status"
 
       - name: Print instrumentation results
         if: always()
@@ -223,18 +223,27 @@ jobs:
           base = Path("app/build/qa-emulator")
           profiles = ("320dp", "360dp-large-font", "412dp")
           failed = False
+          required_suites = {
+              "com.ssm.app.TransactionFlowInstrumentedTest",
+              "com.ssm.app.MainActivityUiTest",
+          }
           for profile in profiles:
               result_dir = base / profile / "results"
               xmls = sorted(result_dir.glob("*.xml")) if result_dir.is_dir() else []
               tests = failures = errors = skipped = 0
+              suite_names = set()
               for path in xmls:
                   root = ET.parse(path).getroot()
                   tests += len(root.findall(".//testcase"))
                   failures += len(root.findall(".//failure"))
                   errors += len(root.findall(".//error"))
                   skipped += len(root.findall(".//skipped"))
-              print(f"{profile}: xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped}")
-              if not xmls or tests <= 0 or failures or errors or skipped:
+                  suite_names.update(
+                      s.get("name") for s in root.findall(".//testsuite") if s.get("name")
+                  )
+              missing = sorted(required_suites - suite_names)
+              print(f"{profile}: xml={len(xmls)} tests={tests} failures={failures} errors={errors} skipped={skipped} missing_suites={missing}")
+              if not xmls or tests < 6 or failures or errors or skipped or missing:
                   failed = True
           if failed:
               sys.exit(1)
